@@ -2,6 +2,14 @@
 
 Simulating a population of MLPs to learn the snake game using a Genetic Algorithm.
 
+In the genetic algorithm, there's:
+- `Simulation phase`: the snakes play their own game until they die
+- `Fitness scoring phase`: each snakes are given a fitness score on how well they played the game 
+- `Elitism phase`: select the snakes with the best scores as gene seeds for the next generation
+- `Crossover phase`: the genes from the elites are used to create new snakes for the next generation
+- `Mutation phase`: the newly created snakes have a chance to mutate
+
+After these phases, we're ready to start simulating a new generation. This continues generations after generations, the snakes with the best strategy will prevail and reproduce, leading to the population gradually changing for the better.
 
 # Installation
 
@@ -38,7 +46,7 @@ CHECKPOINT_GENERATIONS = 250  # Save frequency
 ```
 genetic-snake-ai/
 ├── snake_game.py          # Core Snake game logic
-├── snake_cnn.py           # mlp architecture 
+├── snake_mlp.py           # mlp architecture 
 ├── simulate_population.py # Population training script
 ├── simulate_snake.py      # Single agent testing
 ├── checkpoints/           # Saved model generations
