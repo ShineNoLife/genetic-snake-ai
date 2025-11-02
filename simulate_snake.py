@@ -17,7 +17,6 @@ SNAKE_ROWS = 10
 SNAKE_COLS = 10
 SNAKE_LINESIZE = 1
 
-CHECKPOINT_GENERATIONS = 500
 INPUT_SIZE = 32
 
 
@@ -35,7 +34,7 @@ def newGame():
 if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((GAME_W, GAME_H))
-    pygame.display.set_caption("Rectangle Example")
+    pygame.display.set_caption("Genetic Snake Game")
     
     clock = pygame.time.Clock()
     
