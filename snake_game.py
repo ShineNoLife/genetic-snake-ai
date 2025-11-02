@@ -32,13 +32,15 @@ class snakeBoard:
                  visible : bool):
         
         self.direction = np.random.randint(0, 4) # U R D L
+        self.dx, self.dy = [-1, 0, 1, 0], [0, 1, 0, -1]
         self.health = 50
         self.snake = []
         self.grid = []
+        self.seen = []
         self.fruit = None
         self.ateFruit = False
         self.gameBoard = None
-        self.timeAlive = 0
+        self.timeAlive, self.lastAte = 0, 0
 
 
         self.screen = screen
@@ -51,26 +53,19 @@ class snakeBoard:
 
 
         self.gameBoard = [[EMPTY_VALUE for j in range(self.cols)] for i in range(self.rows)]
+        self.seen = [[False for j in range(self.cols)] for i in range(self.rows)]
 
-        dx, dy = (0, 0)
-        if (self.direction == 0):
-            dx = -1
-        elif (self.direction == 1):
-            dy = 1
-        elif (self.direction == 2):
-            dx = 1
-        else:
-            dy = -1
+        cdx, cdy = self.dx[self.direction], self.dy[self.direction]
 
         # 0 <= min(x, x - dx, x -2dx). max(x, x - dx, x - 2dx) < rows
         # 0 only cares when dx is positive, rows only cares if dx is negative
         # => same logic applies to cols
-        startPos = (np.random.randint(max(0, 2 * dx), min(rows, rows + 2 * dx)), np.random.randint(max(0, 2 * dy), min(cols, cols + 2 * dy)))
+        startPos = (np.random.randint(max(0, 2 * cdx), min(rows, rows + 2 * cdx)), np.random.randint(max(0, 2 * cdy), min(cols, cols + 2 * cdy)))
 
         
         for i in range(3):
             # later parts of snake body is just the head move in opposite direction
-            self.snake.append((startPos[0] - i * dx, startPos[1] - i * dy))
+            self.snake.append((startPos[0] - i * cdx, startPos[1] - i * cdy))
             self.setgameBoard(self.snake[i], SNAKE_VALUE)
         self.fruit = self.newFruit()
         self.setgameBoard(self.fruit, FRUIT_VALUE)
@@ -132,7 +127,12 @@ class snakeBoard:
 
     # returns health, score, time alive
     def extractStats(self):
-        return (self.health, len(self.snake) - 3, self.timeAlive)
+        totalSeen = 0
+        for i in range(self.rows):
+            for j in range(self.cols):
+                totalSeen += self.seen[i][j]
+
+        return (self.health, len(self.snake) - 3, self.timeAlive, self.lastAte, totalSeen)
 
     def setgameBoard(self, pos, value):
         self.gameBoard[pos[0]][pos[1]] = value
@@ -148,60 +148,46 @@ class snakeBoard:
             x, y = block
             pygame.draw.rect(self.screen, HEAD_COLOR if (i == 0) else BODY_COLOR, self.grid[x][y])
 
+    # snake will extends at the exact turn it eat fruit, not the turn after
     def snakeMove(self):
         nPos = self.getNewPos(self.snake[0], self.direction)
         if (not self.validSquare(nPos)):
             self.gameOver(-1)
             return
         
-        
-        # eat fruit
-        if self.ateFruit:
-            self.setgameBoard(self.fruit, EMPTY_VALUE)
-        
+        self.ateFruit = (nPos == self.fruit)
+
         # insert new head, remove old tail
         # if just ate food then tail stays the same 
         self.snake.insert(0, nPos)
         self.setgameBoard(self.snake[0], SNAKE_VALUE)
         if not self.ateFruit:
-            self.setgameBoard(self.snake[-1], SNAKE_VALUE)
+            self.setgameBoard(self.snake[-1], EMPTY_VALUE)
             self.snake.pop()
-        
-        # generate new fruit
-        if self.ateFruit:
-            self.fruit = self.newFruit()
-            self.setgameBoard(self.fruit, FRUIT_VALUE)
-            self.health += 50
-            self.ateFruit = False
+        self.seen[self.snake[0][0]][self.snake[0][1]] = True
 
         if (not self.validSnake()):
             self.gameOver(-1)
             return
         
 
-        # head at fruit
-        if (self.snake[0] == self.fruit):
-            self.ateFruit = True
+        # generate new fruit
+        if self.ateFruit:
+            self.fruit = self.newFruit()
+            self.setgameBoard(self.fruit, FRUIT_VALUE)
+
+            self.health += 50
+            self.lastAte = self.timeAlive
 
         self.health -= 1
 
     
-    def shootRay(self, pos, dx, dy):
+    def shootRay(self, pos, cdx, cdy):
         distWall, distSnake, distFruit = -1, -1, -1
-        
-        totalDist = None
-        if (abs(dx) == 1 and abs(dy) == 1):
-            totalDist = min(self.rows, self.cols)
-        elif (abs(dx) == 1):
-            totalDist = self.rows
-        else:
-            totalDist = self.cols
-        # we can look from both sides so + 2 to compensate, -1 because of the head
-        totalDist += 1
 
         x, y = pos
-        x += dx
-        y += dy
+        x += cdx
+        y += cdy
         currentDist = 1
         
         while (self.validSquare((x, y))):
@@ -209,23 +195,23 @@ class snakeBoard:
                 distSnake = currentDist
 
             if (self.gameBoard[x][y] == FRUIT_VALUE and distFruit == -1):
-                distFruit = currentDist
+                distFruit = 1
 
             currentDist += 1
-            x += dx
-            y += dy
+            x += cdx
+            y += cdy
         distWall = currentDist
-
-        if (distSnake == -1):
-            distSnake = totalDist
-        if (distFruit == -1):
-            distFruit = totalDist
         
-        return (distWall / totalDist, distSnake / totalDist, distFruit / totalDist)
+        if (distFruit == -1):
+            distFruit = 0
+        
+        return (distWall == 1, distSnake == 1, distFruit)
     
     def updateFrame(self, newDir):
-        if newDir != -1:
-            self.direction = newDir
+        if (newDir == 0): # turn left
+            self.direction = (self.direction + 3) % 4
+        elif (newDir == 2): # turn right
+            self.direction = (self.direction + 1) % 4
 
         if (self.health > 0): 
             self.timeAlive += 1
@@ -250,14 +236,39 @@ class snakeBoard:
                 
                 dists = self.shootRay(self.snake[0], dx, dy)
                 for i in range(3):
-                    state.append(dists[i] * 2 - 1)
-        oneHot = [0, 0, 0, 0]
-        oneHot[self.direction] = 1
+                    state.append(dists[i])
+        tmp = [0, 0, 0, 0]
+        tmp[self.direction] = 1
 
         for i in range(4):
-            state.append(oneHot[i])
+            state.append(tmp[i])
 
-        state.append((self.fruit[0] - self.snake[0][0]) / self.rows)
-        state.append((self.fruit[1] - self.snake[0][1]) / self.cols)
+        tmp = [0, 0, 0, 0]
+        if (self.fruit[0] >= self.snake[0][0]):
+            tmp[0] = 1
+        else:
+            tmp[1] = 1
+        if (self.fruit[1] >= self.snake[0][1]):
+            tmp[2] = 1
+        else:
+            tmp[3] = 1
 
+        for i in range(4):
+            state.append(tmp[i])
+
+        # print(state)
         return state 
+    
+    def evaluateMove(self, newDir):
+        points = 0
+
+        points -= 1.5
+        nPos = (self.snake[0][0] + self.dx[newDir], self.snake[0][1] + self.dy[newDir])
+        if (nPos == self.fruit):
+            points += 1000
+        
+        if (abs(self.fruit[0] - nPos[0]) < abs(self.fruit[0] - self.snake[0][0]) \
+            or abs(self.fruit[1] - nPos[1]) < abs(self.fruit[1] - self.snake[0][1])):
+            points += 1
+
+        return points

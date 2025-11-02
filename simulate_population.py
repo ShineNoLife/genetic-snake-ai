@@ -2,8 +2,16 @@ import pygame
 import numpy as np
 import time
 import torch
+import os 
+
+from snake_mlp import snakeMLP
+from snake_game import snakeBoard
+from matplotlib import pyplot as plt
 
 
+SEED = 7
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 BACKGROUND_COLOR = (50,50,50) # dark grey
 
@@ -11,22 +19,20 @@ GAME_W = 1000
 GAME_H = 1000
 GAME_ROWS = 20
 GAME_COLS = 20
-GAME_LINESIZE = 4
+GAME_LINESIZE = 2
 
-SNAKE_ROWS = 12
-SNAKE_COLS = 12
+SNAKE_ROWS = 10
+SNAKE_COLS = 10
 SNAKE_LINESIZE = 1
 
-CHECKPOINT_GENERATIONS = 500
-INPUT_SIZE = 30
+CHECKPOINT_GENERATIONS = 125
+INPUT_SIZE = 32
 
 
-from snake_cnn import snakeCNN
 snakeGames = []
 snakes = []
 scores = []
 
-from snake_game import snakeBoard
 
 def resetGames(isVisible):
     snakeGames.clear()
@@ -41,18 +47,18 @@ def resetGames(isVisible):
                                           SNAKE_LINESIZE, visible=isVisible))
 
 def breedSnake(snakeX, snakeY, input_size):
-    child = snakeCNN(input_size=input_size)
+    child = snakeMLP(input_size=input_size)
     child.requires_grad_(False)
     
     geneRatio = 0.5
     # take the genes from the parents
     with torch.no_grad():
         for paramChild, paramX, paramY in zip(child.parameters(), snakeX.parameters(), snakeY.parameters()):
-            if (np.random.uniform(0, 1) < geneRatio):
-                paramChild.copy_(paramX)
-            else:
-                paramChild.copy_(paramY)
-            # paramChild.copy_(geneRatio * paramX + (1 - geneRatio) * paramY)
+            # if (np.random.uniform(0, 1) < geneRatio):
+            #     paramChild.copy_(paramX)
+            # else:
+            #     paramChild.copy_(paramY)
+            paramChild.copy_(geneRatio * paramX + (1 - geneRatio) * paramY)
 
     # mutate the child
     mutationRate = 0.5
@@ -69,17 +75,17 @@ def breedSnake(snakeX, snakeY, input_size):
 if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((GAME_W, GAME_H))
-    pygame.display.set_caption("Rectangle Example")
+    pygame.display.set_caption("Genetic Snake Game")
     
     clock = pygame.time.Clock()
     
-    resetGames(True)
+    GAMES_VISIBLE = True
+    resetGames(GAMES_VISIBLE)
     for i in range(GAME_ROWS * GAME_COLS):
-        snakes.append(snakeCNN(input_size=INPUT_SIZE))
+        snakes.append(snakeMLP(input_size=INPUT_SIZE))
         snakes[i].requires_grad_(False)
         scores.append(0)
 
-    from matplotlib import pyplot as plt
     plt.ion()  # interactive mode
     plt.figure()
 
@@ -104,22 +110,14 @@ if __name__ == "__main__":
             newDir = snakes[i](snakeGames[i].extractStates())
             snakeGames[i].updateFrame(newDir)
 
-            gHealth, gScore, gTimeAlive = snakeGames[i].extractStats()
-            
+            gHealth, gScore, gTimeAlive, gLastAte, gSeen = snakeGames[i].extractStats()
             alive += (gHealth > 0)
-            # a perfect snake will approach a score of 1
-            # worse possible snake will approach -1
-            # this formula is in range [-1, 1]
-            scores[i] = (gScore - (gTimeAlive / (gScore + 1))) / (gScore + (gTimeAlive / (gScore + 1)))
-            # normalize score to be in range [0, 1] and add the actual score 
-            scores[i] = gScore + scores[i] * 0.5 + 0.5
 
-
-            # scores[i] = (gTimeAlive + gScore * 100) / 100
+            scores[i] = gScore - gTimeAlive / 100
 
         
         if (alive == 0):
-            resetGames(True)
+            resetGames(GAMES_VISIBLE)
 
             sortedCandidates = sorted(zip(scores, snakes), key=lambda x: x[0], reverse=True)
             sortedScores, sortedSnakes = zip(*sortedCandidates)
@@ -131,6 +129,7 @@ if __name__ == "__main__":
             sortedScores = np.array(sortedScores[:selectedCount])
             fitness = sortedScores - sortedScores.min()
             probabilities = fitness / fitness.sum()
+            # print(fitness)
             print(probabilities[:10])
             
             # taking the genes from the selected snakes
@@ -145,11 +144,11 @@ if __name__ == "__main__":
             scores = [0] * len(snakes)
 
 
-
+            
 
             # loggin metrics
             step += 1   
-            print(f"generation: {step}. score: {sortedScores[0]}")
+            print(f"generation: {step}. max score: {sortedScores[0]}. avg score: {np.mean(sortedScores)}")
 
             avgScores.append(np.mean(sortedScores))
             generations.append(step)
@@ -163,8 +162,26 @@ if __name__ == "__main__":
             
 
             if (step % CHECKPOINT_GENERATIONS == 0):
-                import os
-                torch.save(snakes[0].state_dict(), os.path.join('checkpoints', f'snake-{SNAKE_ROWS}x{SNAKE_COLS}-{INPUT_SIZE}-generation-{step}.pth'))
+                ckpt_path = f'snake-inp{INPUT_SIZE}-{SNAKE_ROWS}x{SNAKE_COLS}-pop{GAME_ROWS * GAME_COLS}-gen{step}-seed{SEED}.pth'
+                checkpoint = {
+                    'generation': step,
+                    'population': [snake.state_dict() for snake in sortedSnakes],
+                    'scores': list(sortedScores),
+                    'config': {
+                        'SEED': SEED,
+                        'SNAKE_ROWS': SNAKE_ROWS,
+                        'SNAKE_COLS': SNAKE_COLS,
+                        'INPUT_SIZE': INPUT_SIZE,
+                        'GAME_ROWS': GAME_ROWS,
+                        'GAME_COLS': GAME_COLS
+                    },
+                    'metrics': {
+                        'generations': list(generations),
+                        'avgScores': list(avgScores)
+                    } 
+                }
+                torch.save(checkpoint, os.path.join('checkpoints', ckpt_path))
+                plt.savefig(f"checkpoints/plot-gen-{step}.jpg")
 
             time.sleep(0.1)
 

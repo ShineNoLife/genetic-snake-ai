@@ -2,7 +2,10 @@ import pygame
 import numpy as np
 import time
 import torch
+import os 
 
+from snake_mlp import snakeMLP
+from snake_game import snakeBoard
 
 
 BACKGROUND_COLOR = (50,50,50) # dark grey
@@ -10,16 +13,14 @@ BACKGROUND_COLOR = (50,50,50) # dark grey
 GAME_W = 1000
 GAME_H = 1000
 
-SNAKE_ROWS = 6
-SNAKE_COLS = 6
+SNAKE_ROWS = 10
+SNAKE_COLS = 10
 SNAKE_LINESIZE = 1
 
 CHECKPOINT_GENERATIONS = 500
-INPUT_SIZE = 30
+INPUT_SIZE = 32
 
 
-from snake_cnn import snakeCNN
-from snake_game import snakeBoard
 snakeGame = None
 snake = None
 
@@ -39,13 +40,12 @@ if __name__ == "__main__":
     clock = pygame.time.Clock()
     
     snakeGame = newGame()
-    snake = snakeCNN(input_size=INPUT_SIZE)
+    snake = snakeMLP(input_size=INPUT_SIZE)
     
-    import os
-    ckptDir = os.path.join("checkpoints", "snake-12x12-30-generation-1500.pth")
-    state_dicst = torch.load(ckptDir, weights_only=True)
-    snake.load_state_dict(state_dicst)
-
+    ckptDir = os.path.join("checkpoints", "v1", "snake-inp32-10x10-pop400-gen1000-seed7.pth")
+    state_dicst = torch.load(ckptDir)
+    snake.load_state_dict(state_dicst['population'][0])
+    
     step = 0
     running = True
     while running:
@@ -61,10 +61,18 @@ if __name__ == "__main__":
         newDir = snake(snakeGame.extractStates())
         snakeGame.updateFrame(newDir)
 
+        gHealth, gScore, gTimeAlive, gLastAte, gSeen = snakeGame.extractStats()
+        font = pygame.font.Font(None, 36)
+        score_text = font.render(f"Score: {gScore}", True, (255, 255, 255))
+        health_text = font.render(f"Health: {gHealth}", True, (255, 255, 255))
+
+        screen.blit(score_text, (10, 10))      # Top-left corner
+        screen.blit(health_text, (10, 50)) 
+
         if (snakeGame.health <= 0):
             snakeGame = newGame()
             time.sleep(1)
 
 
         pygame.display.flip()
-        clock.tick(5)
+        clock.tick(30)

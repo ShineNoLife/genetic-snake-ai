@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class snakeCNN(nn.Module):
+class snakeMLP(nn.Module):
     def __init__(self,
                  input_size : int):
         super().__init__()
@@ -12,8 +12,8 @@ class snakeCNN(nn.Module):
         self.r1 = nn.Tanh() 
         self.fc2 = nn.Linear(16, 16)
         self.r2 = nn.Tanh() 
-        self.fc3 = nn.Linear(16, 4)
-
+        self.fc3 = nn.Linear(16, 3)
+    
     def forward(self, x):
         x = torch.tensor(x, dtype=torch.float32)
         
