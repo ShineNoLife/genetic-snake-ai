@@ -23,6 +23,7 @@ the 3 outputs determines if the snake go turn left, go straight or turn right
 
 ### Fitness formula 
 We use a simple formula that rewards when the snake eat fruits and punishes if it takes too many steps: 
+
 $$fitness = score - \frac{steps}{100}$$
 
 ### Elitism
@@ -35,9 +36,9 @@ We select using random wheel, the probability is weighted using the fitness scor
 $$p_{x} = \frac{score_{x}}{\sum_{s \in population} score_{s}}$$
 
 ### Crossover Method
-We use a linear interpolation of the genes from both parent:
+We use a linear interpolation of the genes from both parent, r here is referring to `gene_rate`:
 
-$$child = gene\_rate * parent1 + (1 - gene\_rate) * parent2$$
+$$child = r * parent1 + (1 - r) * parent2$$
 
 ### Mutation Strategy
 Each weight of the MLP have a chance to mutate `mutation_rate`, the mutated is amount is sampled from a scaled gaussian distribution with standard deviation `mutation_epsilon`. \
